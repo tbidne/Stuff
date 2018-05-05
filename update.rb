@@ -6,11 +6,11 @@ require "open3"
 #           Globals           #
 # --------------------------- #
 
-$paramToCommandMap = {
+$param_to_command = {
     :sym => "path/to/shell/task",
     :sym2 => "path/to/another/shell/task"
 }
-$paramToCommandMap.default = false
+$param_to_command.default = false
 
 $ERR_PATH = __dir__ << "/stderr.txt"
 $FINISHED = false
@@ -20,25 +20,25 @@ $SYM_FINISHED = true
 #          Timing Functions          #
 # ---------------------------------- #
 
-def formatTime(min, sec)
+def format_time(min, sec)
     "#{min} minutes and #{sec} seconds"
 end
 
-def readableCurrTime
+def readable_curr_time
     Time.now.strftime("%m/%d/%Y %H:%M")
 end
 
-def secToMin(seconds)
+def sec_to_min(seconds)
     min = (seconds / 60).to_i
     rem = (seconds % 60).to_i
     return min, rem
 end
 
-def printCounter
+def print_counter
     i = 0
     while not $FINISHED
-        min, sec = secToMin(i)
-        print "\rRunning Time: #{formatTime(min, sec)}"
+        min, sec = sec_to_min(i)
+        print "\rRunning Time: #{format_time(min, sec)}"
         i += 1
         sleep 1
     end
@@ -48,21 +48,21 @@ end
 #          Helper Functions          #
 # ---------------------------------- #
 
-def mustWait(param)
+def must_wait(param)
     param == :sym2 && !$SYM_FINISHED
 end
 
-def execAndTimeFn(f, param)
+def exec_and_time_fn(f, param)
     start = Time.now
     output = f.call(param)
-    min, sec = secToMin(Time.now - start)
+    min, sec = sec_to_min(Time.now - start)
     return min, sec, output
 end
 
 # returns the name of the command that failed, writes stderr to a file along with the time of failure
-def handleError(cmd, stderr)
+def handle_error(cmd, stderr)
     summary = "\rError running \`#{cmd}\`"
-    details = readableCurrTime << "\n\n"
+    details = readable_curr_time << "\n\n"
     details << "*****************************************************************************\n"
     details << "#{summary}\n"
     details << "*****************************************************************************\n"
@@ -77,28 +77,28 @@ end
 
 def exec(param)
     # if param is not found then prints error message and returns
-    unless cmd = $paramToCommandMap[param]
+    unless cmd = $param_to_command[param]
         puts "Warning: parameter \'#{param}\' not recognized\n\n"
         return
     end
 
     # wait for other commands if necessary
-    while mustWait(param) do end
+    while must_wait(param) do end
 
-    min, sec, stdout, stderr, status = execAndTimeFn(Open3.method(:capture3), cmd).flatten
+    min, sec, stdout, stderr, status = exec_and_time_fn(Open3.method(:capture3), cmd).flatten
 
     # update output, handle errors if necessary
     output = status.success? ? "\rSuccessfully ran \`#{cmd}\`           " :
-        handleError(cmd, stderr) << "\nSee #{$ERR_PATH} for details"
+        handle_error(cmd, stderr) << "\nSee #{$ERR_PATH} for details"
 
-    output << "\nTime elapsed: #{formatTime(min, sec)}\n\n"
+    output << "\nTime elapsed: #{format_time(min, sec)}\n\n"
     puts output
 
     if param == :path then $PATH_FINISHED = true end
     if param == :db then $DB_FINISHED = true end
 end
 
-def processCommandsHelper(params)
+def process_commands_helper(params)
     threads = []
     params.each { | param |
         threads << Thread.new { exec(param) }
@@ -106,21 +106,21 @@ def processCommandsHelper(params)
     threads.each(&:join)
 end
 
-def processCommands(params)
+def process_commands(params)
     $SYM_FINISHED = params.include? :sym ? false : true
-    processCommandsHelper(params)
+    process_commands_helper(params)
 end
 
 def start(params)
     # start running timer
-    counterThread = Thread.new { printCounter }
+    counter_thread = Thread.new { print_counter }
 
-    min, sec = execAndTimeFn(method(:processCommands), params)
+    min, sec = exec_and_time_fn(method(:process_commands), params)
 
     # stop timer
     $FINISHED = true
-    counterThread.join
-    puts "Finished!\nTotal time elapsed: #{formatTime(min, sec)}"
+    counter_thread.join
+    puts "Finished!\nTotal time elapsed: #{format_time(min, sec)}"
 end
 
 # ---------------------------- #
@@ -133,7 +133,7 @@ ARGV.map!(&:to_sym)
 if ARGV.empty?
     start([:sym])
 elsif ARGV.include?(:all)
-    start($paramToCommandMap.keys)
+    start($param_to_command.keys)
 elsif ARGV.length > 4 or ARGV.include?(:help)
     puts "usage: update.rb <sym>"
 else

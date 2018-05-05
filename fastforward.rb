@@ -28,27 +28,27 @@ $CHAR_TO_OPTION = {
 #        Git Functions        #
 # --------------------------- #
 
-def gitPush(branch)
+def git_push(branch)
     info("pushing to #{branch}...")
     Open3.capture3("git push origin #{branch}:#{branch}")
 end
 
-def gitCheckout(branch)
+def git_checkout(branch)
     info("checking out #{branch}")
     Open3.capture3("git checkout #{branch}")
 end
 
-def gitFastforward(branch)
+def git_fast_forward(branch)
     info("fastforwarding #{branch}...")
     Open3.capture3("git merge @{u} --ff-only")
 end
 
-def gitMergeMaster(branch)
+def git_merge_master(branch)
     info("merging master into #{branch}...")
     Open3.capture3("git merge origin/master --ff-only")
 end
 
-def gitFetch
+def git_fetch
     info("fetching...")
     Open3.capture3("git fetch --prune")
 end
@@ -57,7 +57,7 @@ end
 #        Helper Functions     #
 # --------------------------- #
 
-def parseArgs
+def parse_args
     ARGV.each { |param|
         # map "--param" to :param, check to see if it's an option
         if param.start_with?("--")
@@ -80,7 +80,7 @@ def parseArgs
     $OPTION_ENABLED.values.include? true
 end
 
-def parseBranches(rawStr)
+def parse_branches(rawStr)
     branches = []
     rawStr.split("\n").each { |s|
         begin
@@ -96,7 +96,7 @@ def parseBranches(rawStr)
 end
 
 def update(branch)
-   return $OPTION_ENABLED[:master] ? gitMergeMaster(branch) : gitFastforward(branch)
+   return $OPTION_ENABLED[:master] ? git_merge_master(branch) : git_fast_forward(branch)
 end
 
 def info(msg)
@@ -122,7 +122,7 @@ end
 #        Main Functions       #
 # --------------------------- #
 
-def printHelp
+def print_help
     puts "Usage: fastforward [Options]\n\n" +
     "Synopsis: updates git branches that have been checked out per 'git branch' command.\n" +
     "Must specify at least one option.\n\n" +
@@ -134,17 +134,17 @@ def printHelp
 end
 
 def merge
-    gitFetch
+    git_fetch
 
     updated = []
     unchanged = []
     failed = []
 
     rawStr = Open3.capture3("git branch")[0]
-    branches = parseBranches(rawStr)
+    branches = parse_branches(rawStr)
 
     branches.each { |b|
-        stdout, stderr, status = gitCheckout(b)
+        stdout, stderr, status = git_checkout(b)
         if not status.success?
             err("checking out #{b} - #{stderr}")
             failed << b
@@ -167,19 +167,19 @@ def merge
         info("successfully processed #{b}")
     }
 
-    if !$CURRENT_BRANCH.empty? then gitCheckout($CURRENT_BRANCH) end
+    if !$CURRENT_BRANCH.empty? then git_checkout($CURRENT_BRANCH) end
 
     summary(updated, unchanged, failed)
 end
 
-def pushBranches
+def push_branches
     updated = []
     unchanged = []
     failed = []
 
     # hardcoded because fully automating 'git push' on random branches seems like a bad idea
     ["branch1", "branch2"].each { |b|
-        stderr, stdout, status = gitPush(b)
+        stderr, stdout, status = git_push(b)
         if not status.success?
             err("updating #{b} - #{stderr}")
             failed << b
@@ -202,13 +202,13 @@ end
 #          Executable          #
 # ---------------------------- #
 
-unless parseArgs
+unless parse_args
     puts "fastforward: Bad input. Try \'fastforward --help\' for help"
     exit
 end
 
 if $OPTION_ENABLED[:help]
-    printHelp
+    print_help
     exit
 end
 
@@ -217,5 +217,5 @@ if $OPTION_ENABLED[:upstream] or $OPTION_ENABLED[:master]
 end
 
 if $OPTION_ENABLED[:push]
-    pushBranches
+    push_branches
 end
