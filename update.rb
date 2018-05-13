@@ -1,47 +1,47 @@
 #!/usr/bin/ruby
 
-require "open3"
+require 'open3'
 
 # --------------------------- #
 #           Globals           #
 # --------------------------- #
 
 $param_to_command = {
-    :sym => "path/to/shell/task",
-    :sym2 => "path/to/another/shell/task"
+  sym: 'path/to/shell/task',
+  sym2: 'path/to/another/shell/task'
 }
 $param_to_command.default = false
 
-$ERR_PATH = __dir__ << "/stderr.txt"
-$FINISHED = false
-$SYM_FINISHED = true
+@err_path = __dir__ << '/stderr.txt'
+@finished = false
+@sym_finished = true
 
 # ---------------------------------- #
 #          Timing Functions          #
 # ---------------------------------- #
 
 def format_time(min, sec)
-    "#{min} minutes and #{sec} seconds"
+  "#{min} minutes and #{sec} seconds"
 end
 
 def readable_curr_time
-    Time.now.strftime("%m/%d/%Y %H:%M")
+  Time.now.strftime('%m/%d/%Y %H:%M')
 end
 
 def sec_to_min(seconds)
-    min = (seconds / 60).to_i
-    rem = (seconds % 60).to_i
-    return min, rem
+  min = (seconds / 60).to_i
+  rem = (seconds % 60).to_i
+  [min, rem]
 end
 
 def print_counter
-    i = 0
-    while not $FINISHED
-        min, sec = sec_to_min(i)
-        print "\rRunning Time: #{format_time(min, sec)}"
-        i += 1
-        sleep 1
-    end
+  i = 0
+  until @finished
+    min, sec = sec_to_min(i)
+    print "\rRunning Time: #{format_time(min, sec)}"
+    i += 1
+    sleep 1
+  end
 end
 
 # ---------------------------------- #
@@ -49,26 +49,27 @@ end
 # ---------------------------------- #
 
 def must_wait(param)
-    param == :sym2 && !$SYM_FINISHED
+  param == :sym2 && !@sym_finished
 end
 
-def exec_and_time_fn(f, param)
-    start = Time.now
-    output = f.call(param)
-    min, sec = sec_to_min(Time.now - start)
-    return min, sec, output
+def exec_and_time_fn(func, param)
+  start = Time.now
+  output = func.call(param)
+  min, sec = sec_to_min(Time.now - start)
+  [min, sec, output]
 end
 
-# returns the name of the command that failed, writes stderr to a file along with the time of failure
+# returns the name of the command that failed, writes stderr
+# to a file along with the time of failure
 def handle_error(cmd, stderr)
-    summary = "\rError running \`#{cmd}\`"
-    details = readable_curr_time << "\n\n"
-    details << "*****************************************************************************\n"
-    details << "#{summary}\n"
-    details << "*****************************************************************************\n"
-    details << stderr << "\n\n"
-    File.open($ERR_PATH, 'a') { | file | file.write(details) }
-    summary
+  summary = "\rError running \`#{cmd}\`"
+  details = readable_curr_time << "\n\n"
+  details << "**************************************************************\n"
+  details << "#{summary}\n"
+  details << "**************************************************************\n"
+  details << stderr << "\n\n"
+  File.open(@err_path, 'a') { |file| file.write(details) }
+  summary
 end
 
 # ---------------------------------- #
@@ -76,51 +77,53 @@ end
 # ---------------------------------- #
 
 def exec(param)
-    # if param is not found then prints error message and returns
-    unless cmd = $param_to_command[param]
-        puts "Warning: parameter \'#{param}\' not recognized\n\n"
-        return
-    end
+  # if param is not found then prints error message and returns
+  unless (cmd = $param_to_command[param])
+    puts "Warning: parameter \'#{param}\' not recognized\n\n"
+    return
+  end
 
-    # wait for other commands if necessary
-    while must_wait(param) do end
+  # wait for other commands if necessary
+  while must_wait(param) do end
 
-    min, sec, stdout, stderr, status = exec_and_time_fn(Open3.method(:capture3), cmd).flatten
+  min, sec, stdout, stderr, status =
+    exec_and_time_fn(Open3.method(:capture3), cmd).flatten
 
-    # update output, handle errors if necessary
-    output = status.success? ? "\rSuccessfully ran \`#{cmd}\`           " :
-        handle_error(cmd, stderr) << "\nSee #{$ERR_PATH} for details"
+  # update output, handle errors if necessary
+  success = "\rSuccessfully ran \`%s\`           "
+  err = "\nSee %s for details"
+  output = success % cmd
+  output = handle_error(cmd, stderr) << err % @err_path unless status.success?
 
-    output << "\nTime elapsed: #{format_time(min, sec)}\n\n"
-    puts output
+  output << "\nTime elapsed: #{format_time(min, sec)}\n\n"
+  puts output
 
-    if param == :path then $PATH_FINISHED = true end
-    if param == :db then $DB_FINISHED = true end
+  @sym_finished = true if param == :sym
 end
 
 def process_commands_helper(params)
-    threads = []
-    params.each { | param |
-        threads << Thread.new { exec(param) }
-    }
-    threads.each(&:join)
+  threads = []
+  params.each do |param|
+    threads << Thread.new { exec(param) }
+  end
+  threads.each(&:join)
 end
 
 def process_commands(params)
-    $SYM_FINISHED = params.include? :sym ? false : true
-    process_commands_helper(params)
+  @sym_finished = params.include? :sym ? false : true
+  process_commands_helper(params)
 end
 
 def start(params)
-    # start running timer
-    counter_thread = Thread.new { print_counter }
+  # start running timer
+  counter_thread = Thread.new { print_counter }
 
-    min, sec = exec_and_time_fn(method(:process_commands), params)
+  min, sec = exec_and_time_fn(method(:process_commands), params)
 
-    # stop timer
-    $FINISHED = true
-    counter_thread.join
-    puts "Finished!\nTotal time elapsed: #{format_time(min, sec)}"
+  # stop timer
+  @finished = true
+  counter_thread.join
+  puts "Finished!\nTotal time elapsed: #{format_time(min, sec)}"
 end
 
 # ---------------------------- #
@@ -131,11 +134,11 @@ end
 ARGV.map!(&:to_sym)
 
 if ARGV.empty?
-    start([:sym])
+  start([:sym])
 elsif ARGV.include?(:all)
-    start($param_to_command.keys)
-elsif ARGV.length > 4 or ARGV.include?(:help)
-    puts "usage: update.rb <sym>"
+  start($param_to_command.keys)
+elsif ARGV.length > 4 || ARGV.include?(:help)
+  puts 'usage: update.rb <sym>'
 else
-    start(ARGV.uniq)
+  start(ARGV.uniq)
 end
